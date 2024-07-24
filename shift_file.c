@@ -5,22 +5,43 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-unsigned char rotateRight(unsigned char byte, int n) {
-    return (byte >> n) | (byte << (8 - n));
-}
+void printBytes(const unsigned char *data, size_t size, size_t blockSize) {
+    size_t blocks = size / blockSize;
+    size_t remainder = size % blockSize;
 
-unsigned char rotateLeft(unsigned char byte, int n) {
-    return (byte << n) | (byte >> (8 - n));
-}
-
-void printBytes(const unsigned char *data, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        printf("%02x ", data[i]);
-        if ((i + 1) % 16 == 0) {
-            printf("\n");
+    for (size_t i = 0; i < blocks; i++) {
+        for (size_t j = 0; j < blockSize; j++) {
+            printf("%02x ", data[i * blockSize + j]);
         }
+        printf("\n");
     }
-    printf("\n");
+
+    if (remainder > 0) {
+        for (size_t j = 0; j < remainder; j++) {
+            printf("%02x ", data[blocks * blockSize + j]);
+        }
+        printf("\n");
+    }
+}
+
+void rotateRight(unsigned char *data, size_t size, int n) {
+    unsigned char carry = 0, newCarry;
+
+    for (size_t i = 0; i < size; i++) {
+        newCarry = data[i] & ((1 << n) - 1);
+        data[i] = (carry << (8 - n)) | (data[i] >> n);
+        carry = newCarry;
+    }
+}
+
+void rotateLeft(unsigned char *data, size_t size, int n) {
+    unsigned char carry = 0, newCarry;
+
+    for (size_t i = size; i > 0; i--) {
+        newCarry = (data[i - 1] >> (8 - n));
+        data[i - 1] = (data[i - 1] << n) | carry;
+        carry = newCarry;
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -54,18 +75,16 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Bytes before modification:\n");
-    printBytes(data, fileSize);
+    printBytes(data, fileSize, 16); // Printing in blocks of 16 bytes
 
-    for (size_t i = 0; i < fileSize; i++) {
-        if (n >= 0) {
-            data[i] = rotateRight(data[i], n % 8);
-        } else {
-            data[i] = rotateLeft(data[i], (-n) % 8);
-        }
+    if (n >= 0) {
+        rotateRight(data, fileSize, n % 8);
+    } else {
+        rotateLeft(data, fileSize, (-n) % 8);
     }
 
     printf("Bytes after modification:\n");
-    printBytes(data, fileSize);
+    printBytes(data, fileSize, 16); // Printing in blocks of 16 bytes
 
     msync(data, fileSize, MS_SYNC);
     munmap(data, fileSize);
